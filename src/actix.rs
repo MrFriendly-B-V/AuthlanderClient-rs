@@ -43,7 +43,8 @@ pub async fn check_session(req: HttpRequest, server_uri: &str, scopes: Vec<&'sta
         Err(e) => return Err(Error::InternalError)
     };
 
-    let contains_all = scopes.iter().all(|item| user_scopes.scopes.as_ref().contains(item));
+    let scopes_ref: Vec<&str> = user_scopes.scopes.iter().map(AsRef::as_ref).collect();
+    let contains_all = scopes.iter().all(|item| scopes_ref.contains(item));
     if !contains_all {
         return Err(Error::MissingScopes)
     }
