@@ -6,3 +6,23 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+lazy_static = "1.4.0"
+anyhow = "1.0.44"
+
+[dependencies.reqwest]
+version = "^0.11"
+default-features = false
+features = ["rustls-tls", "json"]
+
+[dependencies.serde]
+version = "^1.0"
+default-features = false
+features = ["derive"]
+
+[dependencies.actix-web]
+version = "^3"
+optional = true
+default-features = false
+
+[features]
+actix = ["actix-web"]
