@@ -1,9 +1,7 @@
 [package]
 name = "authlander-client"
-version = "0.1.0"
-edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+version = "0.2.0"
+edition = "2021"
 
 [dependencies]
 lazy_static = "1.4.0"
@@ -19,10 +17,19 @@ version = "^1.0"
 default-features = false
 features = ["derive"]
 
-[dependencies.actix-web]
-version = "^3"
+[dependencies.actix-web-3]
+version = "3"
+package = "actix-web"
+optional = true
+default-features = false
+
+[dependencies.actix-web-4]
+version = "4"
+package = "actix-web"
 optional = true
 default-features = false
 
 [features]
-actix = ["actix-web"]
+actix = ["actix3"]
+actix3 = ["actix-web-3"]
+actix4 = ["actix-web-4"]

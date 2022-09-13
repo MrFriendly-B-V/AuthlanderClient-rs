@@ -1,17 +1,46 @@
-use actix_web::HttpRequest;
-use actix_web::http::{HeaderMap, HeaderValue};
-use crate::Session;
+#[cfg(feature = "actix-web-3")]
+use actix_web_3::{
+    HttpRequest,
+    http::{HeaderMap, HeaderValue},
+};
+
+#[cfg(feature = "actix-web-4")]
+use actix_web_4::{
+    HttpRequest,
+    http::header::{HeaderMap, HeaderValue},
+};
+
+use crate::{Session, User};
 
 #[derive(Debug)]
 pub enum Error {
+    /// The request is missing the Authorization header
     MissingAuthHeader,
+    /// The Authorization header is present, but contains non-ASCII characters
     AuthHeaderNonAscii,
-    InternalError,
+    /// Internal error to the Authlander server
+    InternalError(Box<dyn std::error::Error>),
+    /// The session is invalid. This implies:
+    /// - That it does not exist
+    /// - Or that it has expired
+    /// - Or that it is not active
     InvalidSession,
+    /// The user is missing one or more of the required scopes
     MissingScopes
 }
 
-pub async fn check_session(req: HttpRequest, server_uri: &str, scopes: Vec<&'static str>) -> Result<(), Error> {
+#[derive(Debug, Clone)]
+pub struct SessionCheck {
+    pub session: Session,
+    pub user: User,
+}
+
+/// Check that a session exists
+///
+/// # Errors
+///
+/// Refer to [Error] variants
+pub async fn check_session(req: HttpRequest, server_uri: &str, scopes: Vec<&'static str>) -> Result<SessionCheck, Error> {
     let hm: &HeaderMap = req.headers();
     let hv: &HeaderValue = match hm.get("authorization") {
         Some(hv) => hv,
@@ -24,24 +53,19 @@ pub async fn check_session(req: HttpRequest, server_uri: &str, scopes: Vec<&'sta
     };
 
     let session = Session::new(str, server_uri);
-    let valid = match session.check().await {
-        Ok(c) => c,
-        Err(_) => return Err(Error::InternalError)
-    };
+    let valid = session.check()
+        .await
+        .map_err(|e| Error::InternalError(e.into()))?;
 
     if !valid.session_valid || !valid.active {
         return Err(Error::InvalidSession)
     }
 
-    let user = match session.get_user().await {
-        Ok(Some(u)) => u,
-        Ok(None) | Err(_) => return Err(Error::InternalError)
-    };
-
-    let user_scopes = match user.get_scopes().await {
-        Ok(s) => s,
-        Err(e) => return Err(Error::InternalError)
-    };
+    let user = session.get_user()
+        .await
+        .map_err(|e| Error::InternalError(e.into()))?
+        .expect("User no longer exists after checking that the session exists");
+    let user_scopes = user.get_scopes().await.map_err(|e| Error::InternalError(e.into()))?;
 
     let scopes_ref: Vec<&str> = user_scopes.scopes.iter().map(AsRef::as_ref).collect();
     let contains_all = scopes.iter().all(|item| scopes_ref.contains(item));
@@ -49,5 +73,8 @@ pub async fn check_session(req: HttpRequest, server_uri: &str, scopes: Vec<&'sta
         return Err(Error::MissingScopes)
     }
 
-    Ok(())
+    Ok(SessionCheck {
+        user,
+        session,
+    })
 }
